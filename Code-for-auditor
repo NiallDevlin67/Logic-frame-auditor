@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logical Frame Auditor — Axiomatic Audit + Reassuraction</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Theme switching ── */
+body {
+  --ink: #e2e8f0;
+  --ink2: #94a3b8;
+  --ink3: #475569;
+  --bg: #030a12;
+  --bg2: #060d18;
+  --surface: #080f18;
+  --rule: #0a1120;
+  --gold: #f59e0b;
+  --gold-lt: #fef3c7;
+  --green: #10b981;
+  --green-lt: #d1fae5;
+  --blue: #3b82f6;
+  --blue-lt: #dbeafe;
+  --amber: #f59e0b;
+  --amber-lt: #fef3c7;
+  --red: #ef4444;
+  --red-lt: #fee2e2;
+  --purple: #8b5cf6;
+  --pink: #ec4899;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-display: 'IBM Plex Sans', sans-serif;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); line-height: 1.6;
+  min-height: 100vh;
+}
+body.warm {
+  --ink: #16140f;
+  --ink2: #4a4540;
+  --ink3: #9a9088;
+  --bg: #f5f0e8;
+  --bg2: #ede8df;
+  --surface: #fff;
+  --rule: #ddd8ce;
+  --gold: #b8860b;
+  --green: #2d5a3d;
+  --blue: #1a3a5c;
+  --red: #c4611a;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
+  --font-display: 'Playfair Display', serif;
+}
+/* Noise texture for warm mode */
+body.warm::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 1000; opacity: .4;
+}
+
+button { font-family: var(--font-body); cursor: pointer; }
+textarea { font-family: var(--font-mono); resize: vertical; }
+
+/* ── Theme toggle ── */
+.theme-toggle {
+  position: fixed; top: 16px; right: 24px; z-index: 999;
+  padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--rule); background: var(--surface); color: var(--ink2);
+  cursor: pointer; transition: all .2s;
+}
+.theme-toggle:hover { border-color: var(--ink3); color: var(--ink); }
+
+/* ── Container ── */
+#app {
+  max-width: 960px; margin: 0 auto; padding: 32px 24px 80px;
+}
+
+/* ── Doc type picker ── */
+.picker-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 28px;
+}
+.picker-card {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 18px; cursor: pointer;
+  text-align: left; color: var(--ink); transition: all .15s;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.picker-card:hover { border-color: var(--ink3); background: var(--bg2); }
+.picker-icon { font-size: 20px; }
+.picker-label { font-size: 14px; font-weight: 700; font-family: var(--font-display); }
+.picker-desc { font-size: 12px; color: var(--ink3); }
+.picker-badge {
+  display: inline-block; align-self: flex-start; font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 3px; font-family: var(--font-mono);
+  letter-spacing: .05em; margin-top: 2px;
+}
+
+/* ── Input row ── */
+.input-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-bottom: 14px;
+}
+.drop-zone {
+  border: 1.5px dashed var(--rule); border-radius: 10px;
+  padding: 24px; text-align: center; cursor: pointer;
+  background: var(--surface); transition: all .15s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 140px;
+}
+.drop-zone:hover { border-color: var(--blue); }
+.drop-icon { font-size: 24px; margin-bottom: 6px; }
+.drop-label { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 2px; }
+.drop-sub { font-size: 10px; color: var(--ink3); }
+.textarea-input {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 10px;
+  color: var(--ink2); padding: 14px; font-size: 13px; line-height: 1.6; outline: none;
+  min-height: 140px; transition: border-color .2s;
+}
+.textarea-input:focus { border-color: var(--blue); }
+.textarea-input::placeholder { color: var(--ink3); }
+
+/* ── Buttons ── */
+.btn-run {
+  padding: 12px 32px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; letter-spacing: .05em;
+  color: #fff; cursor: pointer; transition: all .2s;
+  font-family: var(--font-mono); margin-bottom: 20px;
+}
+.btn-run:disabled { opacity: .35; cursor: not-allowed; }
+.btn-back {
+  background: none; border: 1px solid var(--rule); border-radius: 6px;
+  padding: 5px 12px; font-size: 11px; font-family: var(--font-mono);
+  color: var(--ink3); margin-right: 10px; transition: all .15s;
+}
+.btn-back:hover { border-color: var(--ink3); color: var(--ink); }
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom: 16px; }
+.progress-head { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 10px; font-family: var(--font-mono); color: var(--ink3); }
+.progress-track { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width .4s ease; }
+
+/* ── Error ── */
+.error-banner {
+  margin-bottom: 14px; padding: 10px 14px; border-radius: 7px;
+  font-size: 11px; font-family: var(--font-mono);
+  background: #1c0808; border: 1px solid #7f1d1d; color: #f87171;
+}
+body.warm .error-banner { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
+/* ── Tabs ── */
+.tab-row { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab-btn {
+  padding: 6px 16px; border-radius: 6px; font-size: 10px;
+  font-weight: 600; font-family: var(--font-mono); letter-spacing: .06em;
+  text-transform: uppercase; cursor: pointer; transition: all .15s;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink3);
+}
+.tab-btn:hover { border-color: var(--ink3); color: var(--ink); }
+.tab-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* ── Doc Summary ── */
+.summary-card {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 22px; margin-bottom: 20px;
+}
+.summary-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 16px; font-size: 10px; font-family: var(--font-mono);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink3);
+}
+.summary-stats {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 14px;
+  margin-bottom: 20px;
+}
+.stat-val { font-size: 28px; font-family: var(--font-display); font-weight: 700; line-height: 1; }
+body:not(.warm) .stat-val { font-family: var(--font-mono); font-weight: 400; }
+.stat-lbl { font-size: 9px; font-family: var(--font-mono); color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
+.summary-dists { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.dist-title { font-size: 9px; font-family: var(--font-mono); color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.dist-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font-size: 10px; }
+.dist-key { min-width: 90px; font-family: var(--font-mono); }
+.dist-bar-wrap { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.dist-bar { height: 100%; border-radius: 2px; transition: width .3s; }
+.dist-count { font-family: var(--font-mono); font-size: 10px; color: var(--ink3); min-width: 22px; text-align: right; }
+
+/* ── Frame Cards ── */
+.frame-card {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 8px; margin-bottom: 8px; overflow: hidden;
+}
+.frame-head {
+  padding: 12px 14px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+}
+.frame-meta { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-bottom: 5px; }
+.frame-idx { font-size: 9px; font-family: var(--font-mono); color: var(--ink3); }
+.frame-qtag { font-size: 9px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--ink3); color: var(--ink3); font-family: var(--font-mono); }
+.frame-badge { font-size: 9px; font-weight: 700; padding: 1px 7px; border-radius: 3px; font-family: var(--font-mono); letter-spacing: .04em; }
+.frame-modality { font-size: 9px; padding: 1px 7px; border-radius: 3px; font-family: var(--font-mono); }
+.frame-clause { font-size: 12px; color: var(--ink2); line-height: 1.55; font-style: italic; margin: 0; }
+.frame-score-col { text-align: right; flex-shrink: 0; min-width: 50px; }
+.frame-v { font-size: 22px; font-family: var(--font-display); font-weight: 700; line-height: 1; }
+body:not(.warm) .frame-v { font-family: var(--font-mono); font-weight: 400; }
+.frame-vlbl { font-size: 8px; font-family: var(--font-mono); color: var(--ink3); letter-spacing: .08em; text-transform: uppercase; }
+.frame-bars { padding: 0 14px 9px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.fb-label { font-size: 8px; font-family: var(--font-mono); color: var(--ink3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 2px; }
+.fb-track { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.fb-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.fb-val { font-size: 10px; font-family: var(--font-mono); color: var(--ink3); margin-top: 2px; }
+.frame-detail { display: none; padding: 12px 14px; border-top: 1px solid var(--rule); }
+.frame-detail.open { display: block; }
+.frame-slots { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.pill {
+  padding: 5px 9px; border-radius: 5px; min-width: 65px;
+  border: 1px solid; font-size: 11px;
+}
+.pill-lbl { font-size: 8px; font-family: var(--font-mono); color: var(--ink3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 2px; }
+.pill-val { font-family: var(--font-mono); font-size: 11px; word-break: break-all; }
+.frame-signals { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.signal-tag {
+  font-size: 10px; font-family: var(--font-mono); padding: 2px 7px;
+  border-radius: 3px; color: #f59e0b;
+  background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25);
+}
+.frame-toggle { padding: 3px 13px 6px; font-size: 9px; color: var(--ink3); cursor: pointer; font-family: var(--font-mono); }
+
+/* ── Rubric Panel ── */
+.rubric-card {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 20px; margin-bottom: 20px;
+}
+.rubric-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; font-size: 10px; font-family: var(--font-mono);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink3);
+}
+.rubric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rubric-item {
+  background: var(--bg2); border: 1px solid var(--rule);
+  border-radius: 8px; padding: 14px;
+}
+.ri-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 8px; }
+.ri-qtag { font-size: 9px; font-family: var(--font-mono); color: var(--ink3); margin-right: 5px; }
+.ri-label { font-size: 12px; font-weight: 700; color: var(--ink2); }
+.ri-rating { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 3px; white-space: nowrap; font-family: var(--font-mono); letter-spacing: .04em; }
+.ri-bar { margin-bottom: 8px; }
+.ri-slots { display: flex; flex-wrap: wrap; gap: 4px; }
+.ri-slot { font-size: 9px; font-family: var(--font-mono); padding: 1px 5px; border-radius: 3px; }
+.ri-empty { font-size: 10px; font-style: italic; color: var(--ink3); margin-top: 4px; }
+
+/* ── Reassuraction Panel ── */
+.reass-card {
+  background: var(--surface); border-radius: 12px; padding: 24px;
+  margin-bottom: 16px;
+}
+.reass-kicker {
+  font-size: 9px; font-family: var(--font-mono); letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 8px;
+}
+.reass-title {
+  font-size: 20px; font-weight: 700; font-family: var(--font-display);
+  margin-bottom: 6px; line-height: 1.2;
+}
+.reass-body { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 16px; max-width: 600px; }
+.reass-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.reass-chip {
+  font-size: 10px; font-family: var(--font-mono); padding: 4px 10px;
+  border-radius: 5px; background: var(--bg2); border: 1px solid var(--rule); color: var(--ink2);
+}
+.reass-step {
+  background: var(--bg); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 18px; margin-bottom: 10px;
+}
+.reass-step-num {
+  font-size: 9px; font-family: var(--font-mono); letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.reass-step-title { font-size: 15px; font-weight: 700; font-family: var(--font-display); margin-bottom: 5px; }
+.reass-step-detail { font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.reass-footer { font-size: 11px; color: var(--ink3); font-style: italic; margin-top: 12px; }
+
+/* ── Sections View ── */
+.section-divider {
+  display: flex; align-items: center; gap: 10px; margin: 24px 0 12px;
+}
+.section-line { flex: 1; height: 1px; background: var(--rule); }
+.section-name {
+  font-size: 10px; font-family: var(--font-mono); color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .08em; white-space: nowrap;
+}
+.section-vbar {
+  font-size: 11px; font-family: var(--font-mono);
+}
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .picker-grid, .input-row, .summary-stats, .summary-dists, .rubric-grid { grid-template-columns: 1fr; }
+  .frame-bars { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌗 Theme</button>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RUBRIC_QUESTIONS = {
+  Q1:  { label:"Vision",               short:"Q1", requiredSlots:["metric"],                               requiredModalities:["Committed","Asserted"] },
+  Q2:  { label:"3-Year Trajectory",    short:"Q2", requiredSlots:["baseline","target","deadline"],         requiredModalities:["Committed"] },
+  Q3:  { label:"Theory of Change",     short:"Q3", requiredSlots:["action","metric"],                      requiredModalities:["Committed","Asserted"] },
+  Q4:  { label:"Maturity Assessment",  short:"Q4", requiredSlots:["agent","action"],                       requiredModalities:["Asserted"] },
+  Q5:  { label:"3-Year Roadmap",       short:"Q5", requiredSlots:["action","deadline","metric"],           requiredModalities:["Committed"] },
+  Q6:  { label:"Year 1 Workplan",      short:"Q6", requiredSlots:["agent","action","metric","target","deadline"], requiredModalities:["Committed"] },
+  Q7:  { label:"Delivery Capacity",    short:"Q7", requiredSlots:["agent","action"],                       requiredModalities:["Committed","Asserted"] },
+  Q8:  { label:"Capital Strategy",     short:"Q8", requiredSlots:["metric","target","deadline"],           requiredModalities:["Committed"] },
+  Q9:  { label:"Stakeholder Engagement",short:"Q9",requiredSlots:["agent","action","deadline"],            requiredModalities:["Committed","Asserted"] },
+  Q10: { label:"Risks & Mitigation",   short:"Q10",requiredSlots:["metric","action"],                      requiredModalities:["Committed","Conditional"] },
+  GEN: { label:"General",              short:"GEN",requiredSlots:[],                                       requiredModalities:[] },
+};
+
+const MODALITY_WEIGHT = { Committed:0.7, Asserted:1.0, Aspired:0.2, Conditional:0.5 };
+const MODALITY_COLOR  = { Committed:"#3b82f6", Asserted:"#10b981", Aspired:"#f59e0b", Conditional:"#8b5cf6" };
+const CRITICAL_SLOTS  = ["agent","action","metric","target","deadline"];
+const CHUNK_SIZE      = 1800;
+
+const DOC_TYPES = {
+  send_reform: {
+    label:"SEND Reform Plan", icon:"⬡", color:"#3b82f6",
+    description:"Local authority SEND transformation commitments",
+    agentTypes:["LocalAuthority","ICB","SEND_Partnership","Joint_Board","Named_Team","Named_Service"],
+    metricTypes:["EHCP_Timeliness","EHCP_Volume","SENCO_Count","Tribunal_Rate","WaitingList_Length","EP_Capacity","Inclusion_Base_Places","Mainstream_Adaptations","Budget_Variance","Annual_Review_Rate"],
+    actionTypes:["Increase","Reduce","Train","Commission","Implement","Publish","Review","Recruit","Establish","Deliver","Consult","Co-produce","Monitor","Redesign"],
+    hasRubric:true,
+  },
+  sef: {
+    label:"School SEF", icon:"◈", color:"#10b981",
+    description:"School Self-Evaluation Form",
+    agentTypes:["Headteacher","SLT","Subject_Lead","SENCO","Governing_Body","Department"],
+    metricTypes:["Attendance_Rate","Exclusion_Rate","Attainment_Gap","Progress_Score","Inspection_Grade","Pupil_Premium_Impact","Staff_Retention","CPD_Hours"],
+    actionTypes:["Improve","Increase","Reduce","Implement","Review","Monitor","Train","Develop","Introduce","Strengthen"],
+    hasRubric:false,
+  },
+  school_improvement: {
+    label:"School Improvement Plan", icon:"◇", color:"#f59e0b",
+    description:"SIP / School Development Plan",
+    agentTypes:["Headteacher","SLT","Subject_Lead","SENCO","Governing_Body","Class_Teacher","Department"],
+    metricTypes:["Attainment_%","Progress_Score","Attendance_%","Exclusion_Count","Pupil_Premium_Gap","Reading_Age","EYFS_GLD_%","Staff_Satisfaction"],
+    actionTypes:["Increase","Reduce","Implement","Introduce","Train","Review","Monitor","Deploy","Embed","Develop"],
+    hasRubric:false,
+  },
+  lesson_plan: {
+    label:"Lesson Plan", icon:"△", color:"#8b5cf6",
+    description:"Individual lesson or sequence of lessons",
+    agentTypes:["Teacher","TA","Student_Group","Individual_Student","Department"],
+    metricTypes:["Learning_Objective","Success_Criteria","Assessment_Score","Participation_Rate","Task_Completion","Differentiation_Level"],
+    actionTypes:["Demonstrate","Explain","Assess","Scaffold","Extend","Support","Model","Practice","Review","Produce"],
+    hasRubric:false,
+  },
+  isp: {
+    label:"Individual Support Plan", icon:"○", color:"#ec4899",
+    description:"ISP / EHCP outcomes / IEP",
+    agentTypes:["Named_Teacher","SENCO","TA","Therapist","Parent","Young_Person","External_Agency"],
+    metricTypes:["Target_Outcome","Baseline_Score","Review_Date","Provision_Hours","Progress_Measure","Attendance_%","Wellbeing_Score"],
+    actionTypes:["Achieve","Demonstrate","Improve","Access","Participate","Communicate","Develop","Complete","Reduce","Increase"],
+    hasRubric:false,
+  },
+  other: {
+    label:"Other Policy Document", icon:"□", color:"#94a3b8",
+    description:"Any accountability or policy document",
+    agentTypes:["NamedBody","Team","Individual","Organisation","Department"],
+    metricTypes:["QuantitativeTarget","QualitativeOutcome","ProcessMilestone","BudgetFigure","DateMilestone"],
+    actionTypes:["Implement","Deliver","Achieve","Review","Publish","Train","Recruit","Commission","Reduce","Increase"],
+    hasRubric:false,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+let state = {
+  docType: null,
+  text: '',
+  fileName: null,
+  frames: [],
+  loading: false,
+  progress: { done:0, total:0 },
+  error: null,
+  tab: 'results',
+  theme: 'dark',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCORING & LOGIC
+// ─────────────────────────────────────────────────────────────────────────────
+
+function scoreFrame(frame, allFrames) {
+  const filled = CRITICAL_SLOTS.filter(s => frame[s] !== null && frame[s] !== undefined).length;
+  const G = fille
